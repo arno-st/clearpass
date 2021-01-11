@@ -1,0 +1,30 @@
+/*******************************************************************************
+
+    Author ......... Arno Streuli
+    Contact ........ astreuli@gmail.com
+    Home Site ...... http://cactiusers.org
+    Program ........ ClearPass API for Cacti
+    Purpose ........ Add device to clearpass from HP/Aruba IP when needed
+
+*******************************************************************************/
+
+----[ Purpose
+
+	This plugin manage the interaction with the Clearpass from HP/Aruba via API
+
+----[ Installation
+
+	To install the plugin, please refer to the Plugin Installation Documentation
+
+    
+----[ Possible Bugs?
+   
+	If you find a problem, let me know!!! http://bugs.cacti.net
+
+----[ Future Changes
+
+	Got any ideas or complaints, please e-mail me!
+
+----[ Changelog
+
+1.0.0 Take all usage from old linkdiscovery plugin, to make it more independant
