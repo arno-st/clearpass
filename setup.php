@@ -26,6 +26,7 @@
 function plugin_clearpass_install () {
 	api_plugin_register_hook('clearpass', 'config_settings', 'clearpass_config_settings', 'setup.php');
 	api_plugin_register_hook('clearpass', 'api_device_new', 'clearpass_api_device_new', 'setup.php');
+	api_plugin_register_hook('clearpass', 'device_remove', 'clearpass_device_remove', 'setup.php');
 	api_plugin_register_hook('clearpass', 'utilities_action', 'clearpass_utilities_action', 'setup.php'); // add option to check if device exist or need to be added
 	api_plugin_register_hook('clearpass', 'utilities_list', 'clearpass_utilities_list', 'setup.php');
 
@@ -480,7 +481,6 @@ function add_aruba_device( $host_id, $token ) {
 	$arubaradius = read_config_option("clearpass_radius_secret");
 	
 	clearpass_log('Enter Aruba Add' );
-
 	
 //**** add the device
 	$ip = gethostbyname($host_id['hostname']);
@@ -572,17 +572,22 @@ function add_aruba_device( $host_id, $token ) {
 	clearpass_log('Exit Aruba Add' );
 }
 
-function remove_aruba_device( $host_id ) {
+
+// when a device is deleted, just remove it from Clearpass
+function clearpass_device_remove( $host_id ) {
 	$arubaurl = read_config_option("clearpass_server");
 	
+	clearpass_log('Enter Aruba remove: '.print_r($host_id, true) );
+
 	$token = aruba_get_oauth();
 	if( ! $token ) {
 		return $host_id;
 	}
 		
 //**** remove the device
-	$hostname = $host_id['hostname'];
-	$url = $arubaurl . '/network-device/name/'.$hostname;
+	$result = db_fetch_cell_prepared('SELECT description FROM host WHERE id=?', $host_id );
+
+	$url = $arubaurl . '/network-device/name/'.$result;
 	$handle = curl_init();
 	curl_setopt( $handle, CURLOPT_URL, $url );
 	curl_setopt( $handle, CURLOPT_HEADER, true );
@@ -613,7 +618,7 @@ function remove_aruba_device( $host_id ) {
 			clearpass_log("aruba remove error: ". $result['body']);
         }
        
-	clearpass_log( "aruba remove result: ". $result['body']  );
+	clearpass_log( "aruba remove end: ". $result['body']  );
 
 	return $host_id;
 }
