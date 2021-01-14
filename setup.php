@@ -105,7 +105,7 @@ function clearpass_utilities_action ($action) {
 	
 	if ( $action == 'clearpass_check' ){
 		if ($action == 'clearpass_check') {
-	// get device list,  where serial number is empty, or type
+	// get device list
 			$dbquery = db_fetch_assoc("SELECT * FROM host 
 			WHERE status = '3' AND disabled != 'on'
 			AND snmp_sysDescr LIKE '%cisco%'
@@ -248,18 +248,13 @@ function clearpass_device_action_prepare($save) {
 }
 
 function clearpass_api_device_new( $host_id ) {
-	cacti_log('Enter Clearpass', false, 'CLEARPASS' );
-	
+	clearpass_log('Enter Clearpass' );
+	$host = db_fetch_row("SELECT * FROM host WHERE id=".$host_id['id']);
+
 	// if device is disabled, or snmp has nothing, don't save on other
-	if( array_key_exists('disabled', $host_id) && array_key_exists('snmp_version', $host_id) && array_key_exists('id', $host_id) ) {
-		if ($host_id['disabled'] == 'on' || $host_id['snmp_version'] == 0 ) {
-			clearpass_log('don t use ?!?!?: '.$host_id['description'] );
-			cacti_log('End Clearpass', false, 'CLEARPASS' );
-			return $host_id;
-		}
-	} else {
-		clearpass_log('Recu: '. print_r($host_id, true) );
-		cacti_log('End Clearpass', false, 'CLEARPASS' );
+	if ($host['disabled'] == 'on' || $host['snmp_version'] == 0 ) {
+		clearpass_log('don t use Cleapass: '.$host['description'] );
+		clearpass_log('End Clearpass' );
 		return $host_id;
 	}
 	
@@ -270,13 +265,13 @@ function clearpass_api_device_new( $host_id ) {
 		$token = aruba_get_oauth();
 		if($token) {
 			// if device exist, just update it
-			if( check_aruba_device( $host_id, $token) ) {
-				update_aruba_device($host_id, $token);
+			if( check_aruba_device( $host, $token) ) {
+				update_aruba_device($host, $token);
 			}
-			else add_aruba_device($host_id, $token);
+			else add_aruba_device($host, $token);
 		}
 	}
-	cacti_log('End Clearpass', false, 'CLEARPASS' );
+	clearpass_log('End Clearpass' );
 
 	return $host_id;
 }
@@ -334,6 +329,8 @@ function aruba_get_oauth() {
 	return $token;
 }
 
+// Check if device is present on Aruba Clearpass
+// it's based on the name, so if device has ip for name it won't be find
 function check_aruba_device( $host_id, $token ) {
 	$arubaurl = read_config_option("clearpass_server");
 	$arubatacacs = read_config_option("clearpass_tacacs_secret");
@@ -341,9 +338,7 @@ function check_aruba_device( $host_id, $token ) {
 	
 	clearpass_log('Enter Aruba check' );
 
-	
-//**** check if the device exist
-	$url = $arubaurl . '/network-device/name/'.$host_id['description'];
+	$url = $arubaurl . '/network-device/name/'.strtolower($host_id['description']);
 	$handle = curl_init();
 	curl_setopt( $handle, CURLOPT_URL, $url );
 	curl_setopt( $handle, CURLOPT_HTTPGET, true );
@@ -368,7 +363,7 @@ function check_aruba_device( $host_id, $token ) {
 	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
 	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
 
-	clearpass_log('Exit Aruba check' );
+	clearpass_log('Exit Aruba check:'.$result['http_code'] );
 
 	if ( $result['http_code'] == "200" ) {
 		return true;
@@ -377,16 +372,16 @@ function check_aruba_device( $host_id, $token ) {
 	return false;
 }
 
+// update de device based of the name
 function update_aruba_device( $host_id, $token ) {
 	$arubaurl = read_config_option("clearpass_server");
 	$arubatacacs = read_config_option("clearpass_tacacs_secret");
 	$arubaradius = read_config_option("clearpass_radius_secret");
 	
-	clearpass_log('Enter Aruba Update' );
+	clearpass_log('Enter device Update' );
 	
-//**** add the device
 	$ip = gethostbyname($host_id['hostname']);
-	$url = $arubaurl . '/network-device/name/'.$host_id['description'];
+	$url = $arubaurl . '/network-device/name/'.strtolower($host_id['description']);
 	$handle = curl_init();
 	curl_setopt( $handle, CURLOPT_URL, $url );
 	curl_setopt( $handle, CURLOPT_CUSTOMREQUEST, 'PATCH');
@@ -397,8 +392,8 @@ function update_aruba_device( $host_id, $token ) {
 													 'cache-control:no-cache',
 													 "Authorization: Bearer $token") );
 
-    $desc = $host_id['description'];
-    $name = $host_id['description'];
+    $desc = strtolower($host_id['description']);
+    $name = strtolower($host_id['description']);
 	$snmp_username =  '';
 	$snmp_auth_protocol = ''; 
 	$snmp_auth_key = '';
@@ -468,21 +463,20 @@ function update_aruba_device( $host_id, $token ) {
 	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
 
 	if ( $result['http_code'] > "399" ) {
-		clearpass_log("aruba add error: ". $result['body']);
+		clearpass_log("Device update error: ". print_r( $result, true ) );
 	}
        
-	clearpass_log('Exit Aruba update' );
-
+	clearpass_log('Exit device update' );
 }
 
+// add device on Aruba, if the device exist based on IP, it give an error
 function add_aruba_device( $host_id, $token ) {
 	$arubaurl = read_config_option("clearpass_server");
 	$arubatacacs = read_config_option("clearpass_tacacs_secret");
 	$arubaradius = read_config_option("clearpass_radius_secret");
 	
-	clearpass_log('Enter Aruba Add' );
+	clearpass_log('Enter device Add' );
 	
-//**** add the device
 	$ip = gethostbyname($host_id['hostname']);
 	$url = $arubaurl . '/network-device';
 	$handle = curl_init();
@@ -495,8 +489,8 @@ function add_aruba_device( $host_id, $token ) {
 													 'cache-control:no-cache',
 													 "Authorization: Bearer $token") );
 
-    $desc = $host_id['description'];
-    $name = $host_id['description'];
+    $desc = strtolower($host_id['description']);
+    $name = strtolower($host_id['description']);
 	$snmp_username = '';
 	$snmp_auth_protocol = '';
 	$snmp_auth_key = '';
@@ -566,10 +560,10 @@ function add_aruba_device( $host_id, $token ) {
 	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
 
 	if ( $result['http_code'] > "299" ) {
-		clearpass_log("aruba add error: ". $result['body']);
+		clearpass_log("Device add error: ". print_r($result, true ) );
 	}
        
-	clearpass_log('Exit Aruba Add' );
+	clearpass_log('Exit device Add' );
 }
 
 
@@ -577,14 +571,13 @@ function add_aruba_device( $host_id, $token ) {
 function clearpass_device_remove( $host_id ) {
 	$arubaurl = read_config_option("clearpass_server");
 	
-	clearpass_log('Enter Aruba remove: '.print_r($host_id, true) );
+	clearpass_log('Enter device remove: '.print_r($host_id, true) );
 
 	$token = aruba_get_oauth();
 	if( ! $token ) {
 		return $host_id;
 	}
 		
-//**** remove the device
 	$result = db_fetch_cell_prepared('SELECT description FROM host WHERE id=?', $host_id );
 
 	$url = $arubaurl . '/network-device/name/'.$result;
@@ -615,10 +608,10 @@ function clearpass_device_remove( $host_id ) {
 
 	if ( $result['http_code'] > "299" )
         {
-			clearpass_log("aruba remove error: ". $result['body']);
+			clearpass_log("Device remove error: ". print_r( $result, true ) );
         }
        
-	clearpass_log( "aruba remove end: ". $result['body']  );
+	clearpass_log( "Device remove end: ". $result['body']  );
 
 	return $host_id;
 }
