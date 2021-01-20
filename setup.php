@@ -248,13 +248,18 @@ function clearpass_device_action_prepare($save) {
 }
 
 function clearpass_api_device_new( $host_id ) {
-	clearpass_log('Enter Clearpass' );
+// check valid call
+	if( !array_key_exists('disabled', $host_id ) || !array_key_exists('id', $host_id) ) {
+		clearpass_log('Not valid call: '. print_r($host_id, true) );
+		return $host_id;
+	}
+
+	clearpass_log('Enter Clearpass: '.$host_id['description'].'('.$host_id['id'].')' );
 	$host = db_fetch_row("SELECT * FROM host WHERE id=".$host_id['id']);
 
 	// if device is disabled, or snmp has nothing, don't save on other
 	if ($host['disabled'] == 'on' || $host['snmp_version'] == 0 ) {
 		clearpass_log('don t use Cleapass: '.$host['description'] );
-		clearpass_log('End Clearpass' );
 		return $host_id;
 	}
 	
