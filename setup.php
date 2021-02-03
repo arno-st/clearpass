@@ -248,13 +248,14 @@ function clearpass_device_action_prepare($save) {
 }
 
 function clearpass_api_device_new( $host_id ) {
-// check valid call
-	if( !array_key_exists('disabled', $host_id ) ) {
+	// check valid call, disabled or id (phone dosen't have it)
+	if( !array_key_exists('disabled', $host_id ) || !array_key_exists('id', $host_id )) {
 		clearpass_log('Not valid call: '. print_r($host_id, true) );
 		return $host_id;
 	}
 
 	clearpass_log('Enter Clearpass: '.$host_id['description'].'('.$host_id['id'].')' );
+
 	$host = db_fetch_row("SELECT * FROM host WHERE hostname='".$host_id['hostname']."'");
 
 	// if device is disabled, or snmp has nothing, don't save on other
@@ -301,7 +302,7 @@ function aruba_get_oauth() {
         "client_id": "Cacti",
         "client_secret": "'.$aruba_access_token.'"
         }'
-    );  //r4rL0DvX+/RQBeSoHvH5umxPJ40QTuoWRxh5g9o8lLIU
+    );  //s+O+cjcwdfGUQlxUxsO3zS/tdTfWkrt01BkDWttHMo4A
 
 
 	$response = curl_exec($handle);
@@ -368,7 +369,7 @@ function check_aruba_device( $host_id, $token ) {
 	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
 	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
 
-	clearpass_log('Exit Aruba check:'.$result['http_code'] );
+	clearpass_log('Exit Aruba check:'.$result['http_code'] .'('.$host_id['description'].')' );
 
 	if ( $result['http_code'] == "200" ) {
 		return true;
@@ -397,7 +398,7 @@ function update_aruba_device( $host_id, $token ) {
 													 'cache-control:no-cache',
 													 "Authorization: Bearer $token") );
 
-    $desc = strtolower($host_id['description']);
+    $desc = strtolower($host_id['description']).' '.$host_id['type'];
     $name = strtolower($host_id['description']);
 	$snmp_username =  '';
 	$snmp_auth_protocol = ''; 
@@ -494,7 +495,7 @@ function add_aruba_device( $host_id, $token ) {
 													 'cache-control:no-cache',
 													 "Authorization: Bearer $token") );
 
-    $desc = strtolower($host_id['description']);
+    $desc = strtolower($host_id['description']).' '.$host_id['type'];
     $name = strtolower($host_id['description']);
 	$snmp_username = '';
 	$snmp_auth_protocol = '';
@@ -583,40 +584,42 @@ function clearpass_device_remove( $host_id ) {
 		return $host_id;
 	}
 		
-	$result = db_fetch_cell_prepared('SELECT description FROM host WHERE id=?', $host_id );
-
-	$url = $arubaurl . '/network-device/name/'.$result;
-	$handle = curl_init();
-	curl_setopt( $handle, CURLOPT_URL, $url );
-	curl_setopt( $handle, CURLOPT_HEADER, true );
-	curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
-	curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
-													 'cache-control:no-cache',
-													 "Authorization: Bearer $token") );
-
-    curl_setopt( $handle, CURLOPT_CUSTOMREQUEST, "DELETE" );
-	$response = curl_exec($handle);
-	$error = curl_error($handle);
+	foreach( $host_id as $host ) {
+		$result = db_fetch_cell('SELECT description FROM host WHERE id='. $host );
 	
-	$result = array( 'header' => '',
-                     'body' => '',
-					 'curl_error' => '',
-					 'http_code' => '',
-					 'last_url' => '');
-
-    $header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
-	$result['header'] = substr($response, 0, $header_size);
-	$result['body'] = substr( $response, $header_size );
-	$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
-	$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
-
-	if ( $result['http_code'] > "299" )
-        {
+		$url = $arubaurl . '/network-device/name/'.$result;
+		$handle = curl_init();
+		curl_setopt( $handle, CURLOPT_URL, $url );
+		curl_setopt( $handle, CURLOPT_HEADER, true );
+		curl_setopt( $handle, CURLOPT_SSL_VERIFYPEER, false );
+		curl_setopt( $handle, CURLOPT_RETURNTRANSFER, true );
+		curl_setopt( $handle, CURLOPT_HTTPHEADER, array( 'Content-Type:application/json; charset=UTF-8',
+														'cache-control:no-cache',
+														"Authorization: Bearer $token") );
+	
+		curl_setopt( $handle, CURLOPT_CUSTOMREQUEST, "DELETE" );
+		$response = curl_exec($handle);
+		$error = curl_error($handle);
+		
+		$result = array( 'header' => '',
+						'body' => '',
+						'curl_error' => '',
+						'http_code' => '',
+						'last_url' => '');
+	
+		$header_size = curl_getinfo($handle,CURLINFO_HEADER_SIZE);
+		$result['header'] = substr($response, 0, $header_size);
+		$result['body'] = substr( $response, $header_size );
+		$result['http_code'] = curl_getinfo($handle,CURLINFO_HTTP_CODE);
+		$result['last_url'] = curl_getinfo($handle,CURLINFO_EFFECTIVE_URL);
+	
+		if ( $result['http_code'] > "299" )
+		{
 			clearpass_log("Device remove error: ". print_r( $result, true ) );
-        }
-       
-	clearpass_log( "Device remove end: ". $result['body']  );
+		}
+		curl_close($handle);
+	}
+	clearpass_log( "Device remove end" );
 
 	return $host_id;
 }
