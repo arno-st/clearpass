@@ -249,14 +249,14 @@ function clearpass_device_action_prepare($save) {
 
 function clearpass_api_device_new( $host_id ) {
 	// check valid call, disabled or id (phone dosen't have it)
-	if( !array_key_exists('disabled', $host_id ) || !array_key_exists('id', $host_id )) {
+	if( !array_key_exists('disabled', $host_id ) ) {
 		clearpass_log('Not valid call: '. print_r($host_id, true) );
 		return $host_id;
 	}
 
-	clearpass_log('Enter Clearpass: '.$host_id['description'].'('.$host_id['id'].')' );
+	clearpass_log('Enter Clearpass: '.$host_id['description']);
 
-	$host = db_fetch_row("SELECT * FROM host WHERE hostname='".$host_id['hostname']."'");
+	$host = db_fetch_row("SELECT * FROM host WHERE hostname='".$host_id['hostname']."' OR description='".$host_id['description']."'");
 
 	// if device is disabled, or snmp has nothing, don't save on other
 	if ($host['disabled'] == 'on' || $host['snmp_version'] == 0 ) {
